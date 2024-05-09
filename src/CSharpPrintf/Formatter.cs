@@ -18,7 +18,7 @@ public class Formatter
             if (current == '%')
             {
                 var fmt = FormatSpecifier.Read(format, i, out i);
-                fmt.Format(stringBuilder, args, argIndex++);
+                argIndex = fmt.Format(stringBuilder, args, argIndex);
             }
             else
             {
@@ -29,11 +29,4 @@ public class Formatter
 
         return stringBuilder.ToString();
     }
-
-    /*
-    public void Scan(string str, string format, out params object[] values)
-    {
-        throw new System.NotImplementedException();
-    }
-    */
 }

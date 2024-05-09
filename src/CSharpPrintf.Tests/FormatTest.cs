@@ -50,6 +50,16 @@ public class FormatTest
             "   4",
             formatter.Format("%4d", 4)
         );
+
+        Assert.AreEqual(
+            "   5",
+            formatter.Format("%*d", 4, 5)
+        );
+
+        Assert.AreEqual(
+            "1 03 0005",
+            formatter.Format("%d %0*d %0*d", 1, 2, 3, 4, 5)
+        );
     }
 
     [TestMethod]

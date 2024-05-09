@@ -57,11 +57,18 @@ internal class FormatSpecifier
     public int precision = 6;
     public bool isUpper = false;
     public int width;
+    public bool readWidth;
 
-    public void Format(StringBuilder dest, object[] args, int index)
+    public int Format(StringBuilder dest, object[] args, int index)
     {
         int startLength = dest.Length;
         int offsetPadding = 0;
+
+        if (readWidth)
+        {
+            width = (int)args[index];
+            index++;
+        }
         
         switch (type)
         {
@@ -73,30 +80,35 @@ internal class FormatSpecifier
                 long num = Convert.ToInt64(args[index]);
                 if ((flags & FormatFlag.Plus) != 0 && num >= 0) dest.Append('+');
                 dest.Append(num);
+                index++;
                 break;
             }
             case FormatType.UnsignedDecimal:
             {
                 ulong num = Convert.ToUInt64(args[index]);
                 dest.Append(num);
+                index++;
                 break;
             }
             case FormatType.FloatFixed:
             {
                 double num = Convert.ToDouble(args[index]);
                 dest.Append(num.ToString($"{(isUpper ? 'F' : 'f')}{precision}", CultureInfo.InvariantCulture));
+                index++;
                 break;
             }
             case FormatType.FloatSci:
             {
                 double num = Convert.ToDouble(args[index]);
                 dest.Append(num.ToString($"{(isUpper ? 'E' : 'e')}{precision}", CultureInfo.InvariantCulture));
+                index++;
                 break;
             }
             case FormatType.FloatNorm:
             {
                 double num = Convert.ToDouble(args[index]);
                 dest.Append(num.ToString($"{(isUpper ? 'G' : 'g')}{precision}", CultureInfo.InvariantCulture));
+                index++;
                 break;
             }
             case FormatType.Hexadecimal:
@@ -115,6 +127,7 @@ internal class FormatSpecifier
                 }
                 
                 dest.Append(num.ToString(isUpper ? "X" : "x"));
+                index++;
                 break;
             }
             case FormatType.Octal:
@@ -133,13 +146,16 @@ internal class FormatSpecifier
                 }
                 
                 dest.Append(Convert.ToString(num, 8));
+                index++;
                 break;
             }
             case FormatType.String:
                 dest.Append((string)args[index]);
+                index++;
                 break;
             case FormatType.Char:
                 dest.Append((char)args[index]);
+                index++;
                 break;
             default:
                 throw new NotImplementedException();
@@ -154,6 +170,8 @@ internal class FormatSpecifier
             string padContent = (flags & FormatFlag.Zero) != 0 ? "0" : " ";
             dest.Insert(insertIndex, padContent, pad);
         }
+
+        return index;
     }
 
     private static FormatFlag GetFlag(char c)
@@ -231,6 +249,17 @@ internal class FormatSpecifier
         return flags;
     }
 
+    private static int ReadWidth(string str, int startIndex, out int endIndex)
+    {
+        if (str[startIndex] == '*')
+        {
+            endIndex = startIndex + 1;
+            return -1;
+        }
+
+        return ReadNumber(str, startIndex, out endIndex);
+    }
+
     private static FormatLength ReadLength(string str, int startIndex, out int endIndex)
     {
         char firstChar = str[startIndex];
@@ -283,8 +312,12 @@ internal class FormatSpecifier
         index++;
 
         format.flags = ReadFlags(str, index, out index);
-        format.width = ReadNumber(str, index, out index);
+        
+        format.width = ReadWidth(str, index, out index);
+        if (format.width < 0) format.readWidth = true;
+
         if (str[index] == '.') format.precision = ReadNumber(str, index + 1, out index);
+        
         format.length = ReadLength(str, index, out index);
 
         while (index < len)
