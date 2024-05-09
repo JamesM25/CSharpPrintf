@@ -142,6 +142,36 @@ public class FormatTest
     }
 
     [TestMethod]
+    public void FloatNorm()
+    {
+        var formatter = new Formatter();
+
+        Assert.AreEqual(
+            "25",
+            formatter.Format("%g", 25.0f)
+        );
+
+        Assert.AreEqual(
+            "1.5",
+            formatter.Format("%g", 1.5f)
+        );
+
+        Assert.AreEqual(
+            "1.5",
+            formatter.Format("%.2g", 1.5f)
+        );
+
+        Assert.AreEqual(
+            "2",
+            formatter.Format("%.1g", 1.5f)
+        );
+        Assert.AreEqual(
+            "1",
+            formatter.Format("%.1g", 1.49f)
+        );
+    }
+
+    [TestMethod]
     public void Hexadecimal()
     {
         var formatter = new Formatter();
