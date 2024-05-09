@@ -39,6 +39,33 @@ public class FormatTest
         );
 
         Assert.ThrowsException<OverflowException>(() => formatter.Format("%u", -10));
+
+        Assert.AreEqual(
+            " 10",
+            formatter.Format("% d", 10)
+        );
+        Assert.AreEqual(
+            "+10",
+            formatter.Format("% +d", 10)
+        );
+
+        Assert.AreEqual(
+            "-10",
+            formatter.Format("% d", -10)
+        );
+        Assert.AreEqual(
+            "-10",
+            formatter.Format("% +d", -10)
+        );
+
+        Assert.AreEqual(
+            " 0",
+            formatter.Format("% d", 0)
+        );
+        Assert.AreEqual(
+            "+0",
+            formatter.Format("% +d", 0)
+        );
     }
 
     [TestMethod]
@@ -99,6 +126,22 @@ public class FormatTest
         );
 
         Assert.ThrowsException<InvalidCastException>(() => formatter.Format("%c", 1));
+    }
+
+    [TestMethod]
+    public void String()
+    {
+        var formatter = new Formatter();
+
+        Assert.AreEqual(
+            "Hello, world!",
+            formatter.Format("%s", "Hello, world!")
+        );
+
+        Assert.AreEqual(
+            "Hello",
+            formatter.Format("%.5s", "Hello, world!")
+        );
     }
 
     [TestMethod]

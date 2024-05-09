@@ -54,6 +54,7 @@ internal class FormatSpecifier
     public FormatFlag flags;
     public FormatLength length;
     public int index = -1;
+    public bool hasPrecision = false;
     public int precision = 6;
     public bool isUpper = false;
     public int width;
@@ -78,7 +79,10 @@ internal class FormatSpecifier
             case FormatType.Decimal:
             {
                 long num = Convert.ToInt64(args[index]);
+
                 if ((flags & FormatFlag.Plus) != 0 && num >= 0) dest.Append('+');
+                else if ((flags & FormatFlag.Space) != 0 && num >= 0) dest.Append(' ');
+
                 dest.Append(num);
                 index++;
                 break;
@@ -93,6 +97,10 @@ internal class FormatSpecifier
             case FormatType.FloatFixed:
             {
                 double num = Convert.ToDouble(args[index]);
+
+                if ((flags & FormatFlag.Plus) != 0 && num >= 0) dest.Append('+');
+                else if ((flags & FormatFlag.Space) != 0 && num >= 0) dest.Append(' ');
+
                 dest.Append(num.ToString($"{(isUpper ? 'F' : 'f')}{precision}", CultureInfo.InvariantCulture));
                 index++;
                 break;
@@ -100,6 +108,10 @@ internal class FormatSpecifier
             case FormatType.FloatSci:
             {
                 double num = Convert.ToDouble(args[index]);
+
+                if ((flags & FormatFlag.Plus) != 0 && num >= 0) dest.Append('+');
+                else if ((flags & FormatFlag.Space) != 0 && num >= 0) dest.Append(' ');
+
                 dest.Append(num.ToString($"{(isUpper ? 'E' : 'e')}{precision}", CultureInfo.InvariantCulture));
                 index++;
                 break;
@@ -107,6 +119,10 @@ internal class FormatSpecifier
             case FormatType.FloatNorm:
             {
                 double num = Convert.ToDouble(args[index]);
+
+                if ((flags & FormatFlag.Plus) != 0 && num >= 0) dest.Append('+');
+                else if ((flags & FormatFlag.Space) != 0 && num >= 0) dest.Append(' ');
+                
                 dest.Append(num.ToString($"{(isUpper ? 'G' : 'g')}{precision}", CultureInfo.InvariantCulture));
                 index++;
                 break;
@@ -150,7 +166,8 @@ internal class FormatSpecifier
                 break;
             }
             case FormatType.String:
-                dest.Append((string)args[index]);
+                if (hasPrecision) dest.Append((string)args[index], 0, precision);
+                else dest.Append((string)args[index]);
                 index++;
                 break;
             case FormatType.Char:
@@ -316,7 +333,11 @@ internal class FormatSpecifier
         format.width = ReadWidth(str, index, out index);
         if (format.width < 0) format.readWidth = true;
 
-        if (str[index] == '.') format.precision = ReadNumber(str, index + 1, out index);
+        if (str[index] == '.')
+        {
+            format.precision = ReadNumber(str, index + 1, out index);
+            format.hasPrecision = true;
+        }
         
         format.length = ReadLength(str, index, out index);
 
