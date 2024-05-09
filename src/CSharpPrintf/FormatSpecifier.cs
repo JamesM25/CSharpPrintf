@@ -1,6 +1,33 @@
 namespace CSharpPrintf;
 
+using System.Globalization;
 using System.Text;
+
+[Flags]
+internal enum FormatFlag
+{
+    None = 0,
+
+    AlignLeft = 1 << 0,
+    Plus = 1 << 1,
+    Space = 1 << 2,
+    Zero = 1 << 3,
+    Apostrophe = 1 << 4,
+    Hash = 1 << 5
+}
+
+internal enum FormatLength
+{
+    Default,
+    hh,
+    h,
+    l,
+    ll,
+    L,
+    z,
+    j,
+    t
+}
 
 internal enum FormatType
 {
@@ -21,45 +48,112 @@ internal enum FormatType
     Undefined
 }
 
-[Flags]
-internal enum FormatFlag
-{
-    None = 0,
-
-    AlignLeft = 1 << 0,
-    Plus = 1 << 1,
-    Space = 1 << 2,
-    Zero = 1 << 3,
-    Apostrophe = 1 << 4,
-    Hash = 1 << 5
-}
-
 internal class FormatSpecifier
 {
     public FormatType type = FormatType.Undefined;
     public FormatFlag flags;
+    public FormatLength length;
     public int index = -1;
+    public int precision = 6;
     public bool isUpper = false;
+    public int width;
 
     public void Format(StringBuilder dest, object[] args, int index)
     {
+        int startLength = dest.Length;
+        int offsetPadding = 0;
+        
         switch (type)
         {
             case FormatType.Percent:
                 dest.Append('%');
-                return;
+                break;
             case FormatType.Decimal:
-                dest.Append((int)args[index]);
-                return;
+            {
+                long num = Convert.ToInt64(args[index]);
+                if ((flags & FormatFlag.Plus) != 0 && num >= 0) dest.Append('+');
+                dest.Append(num);
+                break;
+            }
+            case FormatType.UnsignedDecimal:
+            {
+                ulong num = Convert.ToUInt64(args[index]);
+                dest.Append(num);
+                break;
+            }
+            case FormatType.FloatFixed:
+            {
+                double num = Convert.ToDouble(args[index]);
+                dest.Append(num.ToString($"{(isUpper ? 'F' : 'f')}{precision}", CultureInfo.InvariantCulture));
+                break;
+            }
+            case FormatType.FloatSci:
+            {
+                double num = Convert.ToDouble(args[index]);
+                dest.Append(num.ToString($"{(isUpper ? 'E' : 'e')}{precision}", CultureInfo.InvariantCulture));
+                break;
+            }
+            case FormatType.FloatNorm:
+            {
+                double num = Convert.ToDouble(args[index]);
+                dest.Append(num.ToString($"{(isUpper ? 'G' : 'g')}{precision}", CultureInfo.InvariantCulture));
+                break;
+            }
+            case FormatType.Hexadecimal:
+            {
+                long num = Convert.ToInt64(args[index]);
+
+                if ((flags & FormatFlag.Hash) != 0)
+                {
+                    dest.Append(isUpper ? "0X" : "0x");
+
+                    if ((flags & FormatFlag.Zero) != 0)
+                    {
+                        // Padding zeros are applied after the "0x" prefix, but padding spaces are not
+                        offsetPadding = 2;
+                    }
+                }
+                
+                dest.Append(num.ToString(isUpper ? "X" : "x"));
+                break;
+            }
+            case FormatType.Octal:
+            {
+                long num = Convert.ToInt64(args[index]);
+
+                if ((flags & FormatFlag.Hash) != 0)
+                {
+                    dest.Append('0');
+
+                    if ((flags & FormatFlag.Zero) != 0)
+                    {
+                        // Padding zeros are applied after the "0" prefix, but padding spaces are not
+                        offsetPadding = 1;
+                    }
+                }
+                
+                dest.Append(Convert.ToString(num, 8));
+                break;
+            }
             case FormatType.String:
                 dest.Append((string)args[index]);
-                return;
+                break;
             case FormatType.Char:
                 dest.Append((char)args[index]);
-                return;
+                break;
+            default:
+                throw new NotImplementedException();
         }
 
-        throw new NotImplementedException();
+        int pad = width - (dest.Length - startLength);
+        if (pad > 0)
+        {
+            int insertIndex = (flags & FormatFlag.AlignLeft) != 0 ? dest.Length : startLength;
+            insertIndex += offsetPadding;
+
+            string padContent = (flags & FormatFlag.Zero) != 0 ? "0" : " ";
+            dest.Insert(insertIndex, padContent, pad);
+        }
     }
 
     private static FormatFlag GetFlag(char c)
@@ -116,6 +210,48 @@ internal class FormatSpecifier
         return FormatType.Undefined;
     }
 
+    private static FormatFlag ReadFlags(string str, int startIndex, out int endIndex)
+    {
+        int index = startIndex;
+        FormatFlag flags = FormatFlag.None;
+
+        while (true)
+        {
+            FormatFlag currentFlag = GetFlag(str[index]);
+            if (currentFlag == FormatFlag.None) break;
+
+            flags |= currentFlag;
+            index++;
+        }
+
+        // Left alignment overrides padding zeros
+        if ((flags & FormatFlag.AlignLeft) != 0) flags &= ~FormatFlag.Zero;
+
+        endIndex = index;
+        return flags;
+    }
+
+    private static FormatLength ReadLength(string str, int startIndex, out int endIndex)
+    {
+        char firstChar = str[startIndex];
+        bool repeat = str.Length > startIndex + 1 && firstChar == str[startIndex + 1] && (firstChar == 'h' || firstChar == 'l');
+
+        endIndex = startIndex + (repeat ? 2 : 1);
+
+        switch (firstChar)
+        {
+            case 'h': return repeat ? FormatLength.hh : FormatLength.h;
+            case 'l': return repeat ? FormatLength.ll : FormatLength.l;
+            case 'L': return FormatLength.L;
+            case 'z': return FormatLength.z;
+            case 'j': return FormatLength.j;
+            case 't': return FormatLength.t;
+            default:
+                endIndex = startIndex;
+                return FormatLength.Default;
+        }
+    }
+
     private static int ReadNumber(string str, int startIndex, out int endIndex)
     {
         int num = 0;
@@ -136,20 +272,20 @@ internal class FormatSpecifier
 
     public static FormatSpecifier Read(string str, int startIndex, out int endIndex)
     {
-        var symbol = new FormatSpecifier();
+        var format = new FormatSpecifier();
         int len = str.Length;
         int index = startIndex;
         endIndex = index;
 
         if (index > len) throw new IndexOutOfRangeException("startIndex must be less than the string's length");
 
-        if (str[index] != '%') throw new ArgumentException("Symbol must begin with %");
+        if (str[index] != '%') throw new ArgumentException("Format specifier must begin with %");
         index++;
 
-        if (char.IsAsciiDigit(str[index]))
-        {
-            int num = ReadNumber(str, index, out index);
-        }
+        format.flags = ReadFlags(str, index, out index);
+        format.width = ReadNumber(str, index, out index);
+        if (str[index] == '.') format.precision = ReadNumber(str, index + 1, out index);
+        format.length = ReadLength(str, index, out index);
 
         while (index < len)
         {
@@ -158,13 +294,13 @@ internal class FormatSpecifier
 
             if (type != FormatType.Undefined)
             {
-                symbol.type = type;
-                symbol.isUpper = char.IsUpper(current);
+                format.type = type;
+                format.isUpper = char.IsUpper(current);
                 endIndex = index;
                 break;
             }
         }
 
-        return symbol;
+        return format;
     }
 }
