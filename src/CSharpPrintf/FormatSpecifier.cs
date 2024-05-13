@@ -45,6 +45,7 @@ internal enum FormatType
     FloatHex,
     N,
 
+    Empty,
     Undefined
 }
 
@@ -62,6 +63,11 @@ internal class FormatSpecifier
 
     public int Format(StringBuilder dest, object[] args, int index)
     {
+        if (type == FormatType.Empty)
+        {
+            return index;
+        }
+        
         int startLength = dest.Length;
         int offsetPadding = 0;
 
@@ -122,7 +128,7 @@ internal class FormatSpecifier
 
                 if ((flags & FormatFlag.Plus) != 0 && num >= 0) dest.Append('+');
                 else if ((flags & FormatFlag.Space) != 0 && num >= 0) dest.Append(' ');
-                
+
                 dest.Append(num.ToString($"{(isUpper ? 'G' : 'g')}{precision}", CultureInfo.InvariantCulture));
                 index++;
                 break;
@@ -250,7 +256,7 @@ internal class FormatSpecifier
         int index = startIndex;
         FormatFlag flags = FormatFlag.None;
 
-        while (true)
+        while (index < str.Length)
         {
             FormatFlag currentFlag = GetFlag(str[index]);
             if (currentFlag == FormatFlag.None) break;
@@ -279,6 +285,12 @@ internal class FormatSpecifier
 
     private static FormatLength ReadLength(string str, int startIndex, out int endIndex)
     {
+        if (startIndex >= str.Length)
+        {
+            endIndex = startIndex;
+            return FormatLength.Default;
+        }
+
         char firstChar = str[startIndex];
         bool repeat = str.Length > startIndex + 1 && firstChar == str[startIndex + 1] && (firstChar == 'h' || firstChar == 'l');
 
@@ -302,14 +314,9 @@ internal class FormatSpecifier
     {
         int num = 0;
         int index = startIndex;
-        while (true)
-        {
-            char current = str[index];
-            if (!char.IsAsciiDigit(current)) break;
 
-            num = num * 10 + current - '0';
-            index++;
-        }
+        while (index < str.Length && char.IsAsciiDigit(str[index]))
+            num = num * 10 + str[index++] - '0';
 
         endIndex = index;
         return num;
@@ -319,41 +326,38 @@ internal class FormatSpecifier
     public static FormatSpecifier Read(string str, int startIndex, out int endIndex)
     {
         var format = new FormatSpecifier();
-        int len = str.Length;
         int index = startIndex;
-        endIndex = index;
 
-        if (index > len) throw new IndexOutOfRangeException("startIndex must be less than the string's length");
-
-        if (str[index] != '%') throw new ArgumentException("Format specifier must begin with %");
-        index++;
-
-        format.flags = ReadFlags(str, index, out index);
-        
-        format.width = ReadWidth(str, index, out index);
-        if (format.width < 0) format.readWidth = true;
-
-        if (str[index] == '.')
+        try
         {
-            format.precision = ReadNumber(str, index + 1, out index);
-            format.hasPrecision = true;
-        }
-        
-        format.length = ReadLength(str, index, out index);
+            if (str[index] != '%') throw new ArgumentException("Format specifier must begin with %");
+            index++;
 
-        while (index < len)
-        {
-            char current = str[index++];
-            var type = GetType(current);
+            format.flags = ReadFlags(str, index, out index);
+            
+            format.width = ReadWidth(str, index, out index);
+            if (format.width < 0) format.readWidth = true;
 
-            if (type != FormatType.Undefined)
+            if (str[index] == '.')
             {
-                format.type = type;
-                format.isUpper = char.IsUpper(current);
-                endIndex = index;
-                break;
+                format.precision = ReadNumber(str, index + 1, out index);
+                format.hasPrecision = true;
             }
+            
+            format.length = ReadLength(str, index, out index);
+
+            char formatChar = str[index];
+            format.type = GetType(formatChar);
+            if (format.type == FormatType.Undefined) throw new ArgumentException($"Unknown format type: '{formatChar}'");
+            format.isUpper = char.IsAsciiLetterUpper(formatChar);
+            index++;
         }
+        catch
+        {
+            format.type = FormatType.Empty;
+        }
+
+        endIndex = index;
 
         return format;
     }

@@ -11,7 +11,6 @@ public class Formatter
         int argIndex = 0;
         stringBuilder.Clear();
 
-
         for (int i = 0; i < format.Length;)
         {
             char current = format[i];
